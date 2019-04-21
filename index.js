@@ -4,7 +4,7 @@
 const http = require('http')
 const url = require('url')
 const StringDecoder = require('string_decoder').StringDecoder//Provides a way of deoding buffer objects into strings
-
+const config = require('./config')
 
 //The server should respons to all requests with a string
 const server = http.createServer((req, res) => {
@@ -37,19 +37,55 @@ const server = http.createServer((req, res) => {
     req.on('end',() =>{
         buffer += decoder.end()
 
-        //Sending the response
-        res.end("Hello world!\n")
+        //Chose the handler the request should go to
+        let chosenHandler  = typeof(router[trimmedPath])  !== 'undefined' ? router[trimmedPath] : handlers.notFound
 
-        //Log the path user is asking for
-        console.log('Request received with these headers:', headers)
-        console.log('Request received with this payload:', buffer)
+        //Construct the data object to send to the handler
+        let data = {
+            'trimmedPath': trimmedPath,
+            'queryStringObject' : queryStringObject,
+            'method' : method,
+            'headers' : headers,
+            'payload' : buffer
+        }
+
+        //route the request to the handler specified in the router
+        chosenHandler(data, (statusCode, payload) => {
+            //use the status callback by the handler or default to 200
+            statusCode = typeof(statusCode) == 'number' ? statusCode : 200
+            payload = typeof(payload) == 'object' ? payload : {}
+
+            //convert the payload into a string
+            let payloadString = JSON.stringify(payload)
+
+            res.setHeader('Content-Type', 'application/json')
+            res.writeHead(statusCode)
+            res.end(payloadString)
+
+            console.log('Returning this response:', statusCode,payloadString)
+        })
     })
-
-    
-
-    
 })
 
 server.listen(3000, () => {
-    console.log("Server is listening in port 3000")
+    console.log("Server is listening in port 3000 in staging")
 })
+
+
+//Define handlers
+let handlers = {}
+
+//sample handler
+handlers.sample = (data, callback) => {
+    callback(406, {'name': 'sample handler'})
+}
+
+//Not found handler
+handlers.notFound = (data, callback) => {
+    callback(404)
+}
+
+//Define a request router
+let router = {
+    'sample' : handlers.sample
+}
